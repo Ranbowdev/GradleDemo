@@ -1,0 +1,152 @@
+//导入插件 真正工作的就是这些插件 gradle 只是设置使用规则
+//apply 其实也是一个方法，就是这样定义的
+//void apply(Map<String, ?> options);
+apply plugin: 'com.android.application'
+
+// 默认版本号
+ext.appVersionCode = 1
+// 默认版本名z
+ext.appVersionName = "1.0"
+// 默认apk输出路径
+ ext.appReleaseDir = "../apks"
+// 默认正式包后缀名
+ext.appSuffixName = "_release.apk"
+
+// 也可以向下面这种方式声明变量
+ext{
+    a =1
+    b = 2
+}
+
+//定义一个测试方法
+def printName(name){
+    println "hello====" +name
+}
+//可以如下调用
+printName "gqs"
+//printName("gqs")
+
+
+////定义一个方法   获取当前日期
+def getPackageTime() {
+    def date = new Date()
+    def formattedDate = date.format('yyyy_MM_dd_HHmm')
+    return formattedDate
+}
+
+
+
+
+// 加载版本信息配置文件方法
+def loadProperties() {
+
+    //将我们的版本号等信息配置在了local.properties 文件中，这里的file() 是一个方法，返回一个File对象
+    def proFile = file("../local.properties")
+    //Properties 是一种数据类型，其实是就是继承自hashtable ， 可以解析.properties文件，并以键值对方式存储起来
+    //public class Properties extends Hashtable
+    Properties pro = new Properties()
+    proFile.withInputStream { stream->
+        pro.load(stream)
+    }
+    //为上面定义的变量赋值
+    appReleaseDir = pro.appReleaseDir
+    appVersionCode = Integer.valueOf(pro.appVersionCode)
+    appVersionName = pro.appVersionName
+    appSuffixName = pro.appSuffixName
+}
+
+
+
+   // 调用方法 加载版本信息
+  loadProperties()
+
+  android {
+    compileSdkVersion 24
+    buildToolsVersion "24.0.0"
+    defaultConfig {
+        applicationId "com.gqs.demo"
+        minSdkVersion 14
+        targetSdkVersion 24
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+      // 到这里就完成了 任务 2 通过文件方式配置版本号 及版本名等信息
+      //signingConfigs 是对签名文件的配置 使用时会转成一个java方法
+    signingConfigs {
+        debug {
+
+        }
+        release {
+            def Properties localProps = new Properties()
+            //signature.properties 是配置签名信息的配置文件 后面会贴出来
+            localProps.load(new FileInputStream(file('../signature.properties')))
+            storeFile file(localProps["STORE_FILE"])
+            keyAlias localProps["KEY_ALIAS"]
+            storePassword localProps["STORE_PASSWORD"]
+            keyPassword localProps["KEY_PASSWORD"]
+        }
+    }
+      // 到这里就完成了 任务 3 通过文件方式配置签名文件
+      //buildTypes 对不同的打包类型 进行配置
+    buildTypes {
+
+        release {
+            minifyEnabled true //实现代码混淆
+            signingConfig signingConfigs.release  //使用的签名信息
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            applicationVariants.all { variant ->
+                variant.outputs.each { output ->
+                    //开始输出,自定义输出路径
+                    output.outputFile =
+                            new File(appReleaseDir + getPackageTime() + //获取当前日期
+                                    "_v" + appVersionName +//每一个渠道的名称
+                                    variant.productFlavors[0].name +
+                                    appSuffixName)//appSuffixName 是我们声明的文件后缀
+                }
+            }
+
+
+        }
+    }
+// 到这里 就实现了 任务 5 根据不同渠道生成apk文件名称及自定义文件输出路径
+      //productFlavors  就是实现不同渠道打包了
+    productFlavors {
+
+        //对每个渠道 设定特定的包名  也就是applicationId
+
+        rainbow{
+           // 都使用默认设置
+        }
+        xiaomi {
+            //设置特定渠道的包名
+            applicationId "com.rainbow.xiaomi"
+        }
+
+        m360 {
+            applicationId "com.rainbow.qihu"
+
+        }
+
+
+
+        productFlavors.all { flavor ->
+            //动态设置不同渠道的app name
+            // AndroidManifest文件中  android:label="${APP_NAME}"
+            //使用渠道名称替换 APP_NAME，使每个渠道都有自己的 app名称
+
+            flavor.manifestPlaceholders = [APP_NAME: name]
+        }
+        //这样 我们就完成了任务 1 和4 ；多渠道打包及根据不同渠道动态修改程序名称和包名
+    }
+
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    testCompile 'junit:junit:4.12'
+}
